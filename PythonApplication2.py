@@ -53,6 +53,17 @@ def create_data_model():
     data['capacity']= [	    [1,1,1,1,1,1,1],
 				            [1,1,1,1,1,1,1]];
     data['budget']=7;
+    data['constConfig']={   1:{'name': 'OVERLAP','status': 1},
+                            2:{'name': 'PRESENT_CAMPAIGN','status': 1},
+                            3:{'name': 'PRESENT_OFFER','status': 1},
+                            4:{'name': 'ELIGIBILITY_CONTACT','status': 1},
+                            5:{'name': 'ELIGIBILITY_CONSENT','status': 1},
+                            6:{'name': 'CAPACITY_CHANNEL','status': 0},
+                            7:{'name': 'CAPACITY_OFFER','status': 1},
+                            8:{'name': 'BUDGET','status': 0},
+                            9:{'name': 'ELIGIBILITY_CHANNEL','status': 0},
+                            10:{'name': 'ELIGIBILITY_OFFER','status': 0}
+                            };
     return data
 def printSolution2(solver, data, X, Y):
     print('Solution:')
@@ -295,84 +306,94 @@ def buildModel(data,selection):
   
   #Add Constraints
   #Channel Capacity
-  for v in range(len(data['channels'])):
-      if('capacity' in data['channels'][v+1]):
-          solver.Add(solver.Sum(X[i,c,v,t]      for i in range(len(data['customers']))
-                                                for c in range(len(data['campaigns']))
-                                                for t in range(len(data['times']))
-                                                )<=data['channels'][v+1]['capacity'],'ChannelCap {}'.format(v))
-  if('capacity' in data):
-        for v in range(len(data['channels'])):
-              for t in range(len(data['times'])):
-                    solver.Add(solver.Sum(X[i,c,v,t]      for i in range(len(data['customers']))
-                                                          for c in range(len(data['campaigns']))
-                                                          )<=data['capacity'][v][t],'ChannelCapT {}{}'.format(v,t))
+  if(data['constConfig'][6]['status']==1):
+      for v in range(len(data['channels'])):
+          if('capacity' in data['channels'][v+1]):
+              solver.Add(solver.Sum(X[i,c,v,t]      for i in range(len(data['customers']))
+                                                    for c in range(len(data['campaigns']))
+                                                    for t in range(len(data['times']))
+                                                    )<=data['channels'][v+1]['capacity'],'ChannelCap {}'.format(v))
+      if('capacity' in data):
+            for v in range(len(data['channels'])):
+                  for t in range(len(data['times'])):
+                        solver.Add(solver.Sum(X[i,c,v,t]      for i in range(len(data['customers']))
+                                                              for c in range(len(data['campaigns']))
+                                                              )<=data['capacity'][v][t],'ChannelCapT {}{}'.format(v,t))
   #Offer Capacity
-  for o in range(len(data['offers'])):
-      if('capacity' in data['offers'][o+1]):
-          solver.Add(solver.Sum(Y[i,c,o,t]      for i in range(len(data['customers']))
-                                                for c in range(len(data['campaigns']))
-                                                for t in range(len(data['times']))
-                                                )<=data['offers'][o+1]['capacity'],'OfferCap {}'.format(o))
+  if(data['constConfig'][7]['status']==1):
+      for o in range(len(data['offers'])):
+          if('capacity' in data['offers'][o+1]):
+              solver.Add(solver.Sum(Y[i,c,o,t]      for i in range(len(data['customers']))
+                                                    for c in range(len(data['campaigns']))
+                                                    for t in range(len(data['times']))
+                                                    )<=data['offers'][o+1]['capacity'],'OfferCap {}'.format(o))
   #Budget Constaints
-  for c in range(len(data['campaigns'])):
-      if('budget' in data['campaigns'][c+1]):
+  if(data['constConfig'][8]['status']==1):
+      for c in range(len(data['campaigns'])):
+          if('budget' in data['campaigns'][c+1]):
+              solver.Add(solver.Sum(X[i,c,v,t]      for i in range(len(data['customers']))
+                                                    for v in range(len(data['channels']))
+                                                    for t in range(len(data['times']))
+                                                    )<=data['campaigns'][c+1]['budget'],'BudgetC {}'.format(c))
+      if('budget' in data):
           solver.Add(solver.Sum(X[i,c,v,t]      for i in range(len(data['customers']))
+                                                for c in range(len(data['campaigns']))
                                                 for v in range(len(data['channels']))
                                                 for t in range(len(data['times']))
-                                                )<=data['campaigns'][c+1]['budget'],'BudgetC {}'.format(c))
-  if('budget' in data):
-      solver.Add(solver.Sum(X[i,c,v,t]      for i in range(len(data['customers']))
-                                            for c in range(len(data['campaigns']))
-                                            for v in range(len(data['channels']))
-                                            for t in range(len(data['times']))
-                                                          )<=data['budget'],'Budget')
+                                                              )<=data['budget'],'Budget')
   #Channel Eligibility Constraints
-  for i in range(len(data['customers'])):
-    for c in range(len(data['campaigns'])):
-       for v in range(len(data['channels'])):
-         for t in range(len(data['times'])):
-             solver.Add(X[i,c,v,t]<=data['ChannelAv'][v][i],'Channel Eligibility {}{}{}{}'.format(i, c, v, t))
+  if(data['constConfig'][9]['status']==1):
+      if('ChannelAv' in data):
+          for i in range(len(data['customers'])):
+            for c in range(len(data['campaigns'])):
+               for v in range(len(data['channels'])):
+                 for t in range(len(data['times'])):
+                     solver.Add(X[i,c,v,t]<=data['ChannelAv'][v][i],'Channel Eligibility {}{}{}{}'.format(i, c, v, t))
   #Overlap Constraints
-  for i in range(len(data['customers'])):
-    for kk in range(len(data['dTypes'])):
-         for t in range(len(data['times'])):
-            solver.Add(solver.Sum(X[i,c,v,t] for c in range(len(data['campaigns']))
-                                                 for v in range(len(data['channels']))
-                                                 if (data['campaigns'][c+1]['dType']==data['dTypes'][kk+1]['name']))<=1,'Overlap {}{}{}'.format(i, kk, t))
-  #PRESENT Constraints
-  for i in range(len(data['customers'])):
-    for c in range(len(data['campaigns'])):
-            solver.Add(solver.Sum(X[i,c,v,t] for v in range(len(data['channels']))
-                                                 for t in range(len(data['times'])))+ data['PRESENT'][i][c]<=1,'PRESENT {}{}'.format(i,c))
-  #Contact Eligibility for t=0
-  for i in range(len(data['customers'])):
-    for kk in range(len(data['dTypes'])):
-         for v in range(len(data['channels'])):
-            solver.Add(solver.Sum(X[i,c,v,0] for c in range(len(data['campaigns']))
-                                            if (data['campaigns'][c+1]['dType']==data['dTypes'][kk+1]['name']))+data['CONTACT'][kk][v]-data['DSLC'][i][v][kk]<=1,'CONTACT1 {}{}{}'.format(i,kk,v))
-  #Contact Eligibility for t>0   
-  for i in range(len(data['customers'])):
-    for kk in range(len(data['dTypes'])):
-         for v in range(len(data['channels'])):
+  if(data['constConfig'][1]['status']==1):
+      for i in range(len(data['customers'])):
+        for kk in range(len(data['dTypes'])):
              for t in range(len(data['times'])):
-                if(t>0):
-                    solver.Add(solver.Sum(X[i,c,v,t2] for c in range(len(data['campaigns']))
-                                                      for t2 in range(len(data['times']))
-                                                      if (data['campaigns'][c+1]['dType']==data['dTypes'][kk+1]['name']) and t2>=t and t2<t+data['CONTACT'][kk][v])<=1,'CONTACTt {}{}{}{}'.format(i,kk,v,t))
+                solver.Add(solver.Sum(X[i,c,v,t] for c in range(len(data['campaigns']))
+                                                     for v in range(len(data['channels']))
+                                                     if (data['campaigns'][c+1]['dType']==data['dTypes'][kk+1]['name']))<=1,'Overlap {}{}{}'.format(i, kk, t))
+  #PRESENT Constraints
+  if(data['constConfig'][2]['status']==1):
+      for i in range(len(data['customers'])):
+        for c in range(len(data['campaigns'])):
+                solver.Add(solver.Sum(X[i,c,v,t] for v in range(len(data['channels']))
+                                                     for t in range(len(data['times'])))+ data['PRESENT'][i][c]<=1,'PRESENT {}{}'.format(i,c))
+  #Contact Eligibility
+  if(data['constConfig'][4]['status']==1):
+      for i in range(len(data['customers'])):
+        for kk in range(len(data['dTypes'])):
+             for v in range(len(data['channels'])):
+                solver.Add(solver.Sum(X[i,c,v,0] for c in range(len(data['campaigns']))
+                                                if (data['campaigns'][c+1]['dType']==data['dTypes'][kk+1]['name']))+data['CONTACT'][kk][v]-data['DSLC'][i][v][kk]<=1,'CONTACT1 {}{}{}'.format(i,kk,v))
+      #Contact Eligibility for t>0   
+      for i in range(len(data['customers'])):
+        for kk in range(len(data['dTypes'])):
+             for v in range(len(data['channels'])):
+                 for t in range(len(data['times'])):
+                    if(t>0):
+                        solver.Add(solver.Sum(X[i,c,v,t2] for c in range(len(data['campaigns']))
+                                                          for t2 in range(len(data['times']))
+                                                          if (data['campaigns'][c+1]['dType']==data['dTypes'][kk+1]['name']) and t2>=t and t2<t+data['CONTACT'][kk][v])<=1,'CONTACTt {}{}{}{}'.format(i,kk,v,t))
   #Consent Eligibility 
-  for i in range(len(data['customers'])):
-    for c in range(len(data['campaigns'])):
-       for v in range(len(data['channels'])):
-         for t in range(len(data['times'])):
-             solver.Add(X[i,c,v,t]<=data['CONSENT'][i][c][v],'Consent Eligibility {}{}{}{}'.format(i, c, v, t))          
-  #Offer Eligibility 
-  for i in range(len(data['customers'])):
-    for c in range(len(data['campaigns'])):
-       for o in range(len(data['offers'])):
-         for t in range(len(data['times'])):
-             if(data['campaigns'][c+1]['dType']=='OFFER' and data['Oco'][c][o]==1):
-                solver.Add(Y[i,c,o,t]<=data['E'][i][o],'Offer Eligibility {}{}{}{}'.format(i, c, o, t))    
+  if(data['constConfig'][5]['status']==1):
+      for i in range(len(data['customers'])):
+        for c in range(len(data['campaigns'])):
+           for v in range(len(data['channels'])):
+             for t in range(len(data['times'])):
+                 solver.Add(X[i,c,v,t]<=data['CONSENT'][i][c][v],'Consent Eligibility {}{}{}{}'.format(i, c, v, t))          
+  #Offer Eligibility
+  if(data['constConfig'][10]['status']==1): 
+      for i in range(len(data['customers'])):
+        for c in range(len(data['campaigns'])):
+           for o in range(len(data['offers'])):
+             for t in range(len(data['times'])):
+                 if(data['campaigns'][c+1]['dType']=='OFFER' and data['Oco'][c][o]==1):
+                    solver.Add(Y[i,c,o,t]<=data['E'][i][o],'Offer Eligibility {}{}{}{}'.format(i, c, o, t))    
   #Connectivity 
   for i in range(len(data['customers'])):
     for c in range(len(data['campaigns'])):
@@ -388,11 +409,12 @@ def buildModel(data,selection):
              for o in range(len(data['offers'])):
                  if(data['Oco'][c][o]==1):
                      solver.Add((Y[i,c,o,t]-solver.Sum(X[i,c,v,t] for v in range(len(data['channels']))))<=0,'Connectivity2 {}{}{}{}'.format(i,c,t,o))
-  #Offer Sent  
-  for i in range(len(data['customers'])):
-    for o in range(len(data['offers'])):
-        solver.Add(solver.Sum(Y[i,c,o,t] for c in range(len(data['campaigns']))
-                                            for t in range(len(data['times'])))+data['PRESENT_io'][i][o]<=1,'Offer Sent {}{}'.format(i, o))
+  #Offer Sent 
+  if(data['constConfig'][3]['status']==1):
+      for i in range(len(data['customers'])):
+        for o in range(len(data['offers'])):
+            solver.Add(solver.Sum(Y[i,c,o,t] for c in range(len(data['campaigns']))
+                                                for t in range(len(data['times'])))+data['PRESENT_io'][i][o]<=1,'Offer Sent {}{}'.format(i, o))
   #Campaign Status
   for i in range(len(data['customers'])):
     for c in range(len(data['campaigns'])):
